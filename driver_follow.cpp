@@ -78,10 +78,17 @@ double acc_x = 0;
 double acc_y = 0;
 double expect_speed = 0;
 double dis;
-double curspeed_err;
-double speed_errsum;
+double curspeed_err = 0;
+double speed_errsum = 0;
 double t1, t2;
 double s;
+double kp_b;
+double ki_b;
+double kd_b;
+double p_brake;
+double i_brake = 0;
+double d_brake = 0;
+double temp_brake = 0;
 typedef struct Circle									//
 {														//
 	double r;											//
@@ -122,16 +129,28 @@ static void userDriverSetParam(float* cmdAcc, float* cmdBrake, float* cmdSteer, 
 	//纵向y控制
 	//速度控制
 	updateGear(cmdGear);
-	kp_s = 1;
-	ki_s = 0.1;
-	kd_s = 0.3;
-
+	kp_s = 1.75;
+	ki_s = 0.01;
+	kd_s = 0.2;
+	kp_b = 1.75;
+	ki_b = 0.1;
+	kd_b = 0.2;
 	dis = _Leader_Y - 11;
 	expect_speed = ((_speed + speed_y) + acc_y) / (cos(atan2(speed_x, speed_y)))/1000 + dis * sgn(dis)/10;
 	curspeed_err = expect_speed - _speed / 1000 * (cos(atan2(speed_x, speed_y)));
 	speed_errsum = 0.1 * speed_errsum + curspeed_err;
 	s = sgn(speed_y)*abs((speed_y)*(speed_y) / (2 * acc_y));
-	if (_Leader_Y + s > 9.9)
+
+	p_brake = abs(acc_y) / 20;
+
+	d_brake = p_brake - temp_brake;
+
+	i_brake += 0.1*d_brake;
+
+	temp_brake = p_brake;
+	
+
+	if (_Leader_Y + s > 10.2)
 	{
 		if (_Leader_Y > 12)
 			kd_s = 1;
@@ -141,7 +160,7 @@ static void userDriverSetParam(float* cmdAcc, float* cmdBrake, float* cmdSteer, 
 	else
 	{
 		*cmdAcc = 0;
-		*cmdBrake = constrain(0.1, 1, 2 * curspeed_err + 0.7);
+		*cmdBrake = constrain(0.1, 1, kp_b*p_brake + ki_b * i_brake + kd_b * d_brake);
 	}
 
 	{//计算方向PID
@@ -155,7 +174,7 @@ static void userDriverSetParam(float* cmdAcc, float* cmdBrake, float* cmdSteer, 
 		*cmdSteer = constrain(-1.0, 1.0, kp_d * D_err + ki_d * D_errSum + kd_d * D_errDiff);
 	}
 
-	printf("*cmdAcc%.3f*cmdsteer%.3f*cmdbrake%.3fwatch1:%0.3f\n", *cmdAcc, *cmdSteer, *cmdBrake, 2 * curspeed_err + 0.7);
+	printf("*cmdAcc%.3f*cmdsteer%.3f*cmdbrake%.3fwatch1:%0.3fwatch2:%.3fwatch3:%.3f\n", *cmdAcc, *cmdSteer, *cmdBrake, i_brake, acc_y, speed_y);
 
 }
 void updateGear(int *cmdGear)
